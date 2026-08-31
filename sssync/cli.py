@@ -107,7 +107,8 @@ def playlists(source):
     except SssyncError as e:
         raise click.ClickException(str(e))
     for p in src.list_playlists():
-        click.echo(f"{p.source_id}\t{p.track_count:>5}\t{p.name}")
+        count = str(p.track_count) if p.track_count else "-"
+        click.echo(f"{p.source_id}\t{count:>5}\t{p.name}")
 
 
 @main.command()

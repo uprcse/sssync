@@ -1,6 +1,6 @@
 [project]
 name = "sssync"
-version = "0.2.1"
+version = "0.2.2"
 description = "A scriptable playlist sync tool for Qobuz, Spotify, and Jellyfin"
 readme = "README.md"
 license = "MIT"

@@ -27,12 +27,20 @@ class SpotifyClient(Client):
                 "Create an app at https://developer.spotify.com/dashboard and add "
                 "redirect URI http://127.0.0.1:8888/callback"
             )
+        import os
+
+        from spotipy.cache_handler import CacheFileHandler
+
+        cache_path = self.config.get(
+            "token_cache", os.path.expanduser("~/.config/sssync/spotify_token.cache")
+        )
         auth = SpotifyOAuth(
             client_id=self.config["client_id"],
             client_secret=self.config["client_secret"],
             redirect_uri=self.config.get("redirect_uri", "http://127.0.0.1:8888/callback"),
             scope=SCOPE,
             open_browser=True,
+            cache_handler=CacheFileHandler(cache_path=cache_path),
         )
         self.sp = spotipy.Spotify(auth_manager=auth)
         self.sp.current_user()  # fail fast on bad credentials
@@ -46,7 +54,12 @@ class SpotifyClient(Client):
 
     @staticmethod
     def _to_track(item: dict) -> Track | None:
-        t = item.get("track") or {}
+        # current API wraps the track under "item"; legacy responses use
+        # "track". The inner object also has a "track" boolean — never read
+        # the track data from that flag.
+        t = item.get("item") or {}
+        if not t and isinstance(item.get("track"), dict):
+            t = item["track"]
         if not t or t.get("is_local"):
             return None  # local files have no searchable identity
         artists = t.get("artists") or [{}]
@@ -66,11 +79,14 @@ class SpotifyClient(Client):
         while True:
             page = self.sp.current_user_playlists(limit=50, offset=offset)
             for p in page["items"]:
+                # some items (local-files playlists, audiobooks) lack a
+                # tracks object — treat as zero and keep going
+                tracks = p.get("tracks") or {}
                 out.append(Playlist(
-                    name=p["name"],
+                    name=p.get("name") or p["id"],
                     source_id=p["id"],
                     description=p.get("description", ""),
-                    track_count=p["tracks"]["total"],
+                    track_count=tracks.get("total", 0),
                 ))
             if not page.get("next"):
                 break
