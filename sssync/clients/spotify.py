@@ -5,13 +5,15 @@ import re
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
-from ..clients.base import Client, Playlist, Track
+from ..exceptions import ConfigError
+from .base import Client, Playlist, Track
 
 SCOPE = "playlist-read-private playlist-read-collaborative user-library-read"
 
 
 class SpotifyClient(Client):
     name = "spotify"
+    read_only = True  # no playlist-modify scope; Spotify is a source only
 
     def __init__(self, config: dict):
         super().__init__(config)
@@ -20,7 +22,7 @@ class SpotifyClient(Client):
     def authenticate(self):
         missing = [k for k in ("client_id", "client_secret") if not self.config.get(k)]
         if missing:
-            raise SystemExit(
+            raise ConfigError(
                 f"[spotify] missing {', '.join(missing)} in ~/.config/sssync/config.toml. "
                 "Create an app at https://developer.spotify.com/dashboard and add "
                 "redirect URI http://127.0.0.1:8888/callback"
@@ -33,8 +35,7 @@ class SpotifyClient(Client):
             open_browser=True,
         )
         self.sp = spotipy.Spotify(auth_manager=auth)
-        user = self.sp.current_user()
-        # keep auth quiet unless it fails; spotipy prints its own cache info
+        self.sp.current_user()  # fail fast on bad credentials
 
     # --- helpers ---
     @staticmethod
@@ -91,7 +92,10 @@ class SpotifyClient(Client):
         return out
 
     def search_track(self, track):
-        q = f"track:{track.title} artist:{track.artist}"
+        # field queries break on colons/quotes and multi-artist strings —
+        # use a plain query with the primary artist only
+        primary = track.artist.split(",")[0].strip()
+        q = f"{track.title} {primary}"
         res = self.sp.search(q=q, type="track", limit=10)
         from ..matcher import best_match
         cands = [
@@ -107,7 +111,7 @@ class SpotifyClient(Client):
         ]
         return best_match(track, cands)
 
-    # --- favorites ---
+    # --- favorites (read) ---
     def get_favorite_tracks(self):
         out, offset = [], 0
         while True:
@@ -120,9 +124,3 @@ class SpotifyClient(Client):
                 break
             offset += 50
         return out
-
-    # --- writing (requires extra scope; off by default) ---
-    def create_playlist(self, name, description=""):
-        raise NotImplementedError(
-            "Spotify writes need the playlist-modify scope — not enabled yet"
-        )

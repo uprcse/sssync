@@ -1,9 +1,12 @@
 """Qobuz client — token auth, same scheme as the web player / streamrip."""
 
+from pathlib import Path
+
 import requests
 
-from ..clients.base import Client, Playlist, Track
+from ..exceptions import AuthError, ConfigError
 from ..matcher import best_match
+from .base import Client, Playlist, Track
 
 BASE_URL = "https://www.qobuz.com/api.json/0.2"
 DEFAULT_APP_ID = "798273057"
@@ -16,9 +19,11 @@ class QobuzClient(Client):
         super().__init__(config)
         token = config.get("token")
         if not token and config.get("token_path"):
-            token = open(config["token_path"]).read().strip()
+            token = Path(
+                config["token_path"].replace("~", str(Path.home()), 1)
+            ).read_text().strip()
         if not token:
-            raise SystemExit(
+            raise ConfigError(
                 "[qobuz] no token in ~/.config/sssync/config.toml.\n"
                 "Get it: log into https://play.qobuz.com → DevTools (F12) → "
                 "Application → Cookies → qobuz.com → user_auth_token"
@@ -38,11 +43,15 @@ class QobuzClient(Client):
         data = self._get("favorite/getUserFavorites", type="albums", limit=1)
         if "user" in data and "id" in data["user"]:
             self.user_id = data["user"]["id"]
+        if not self.user_id:
+            raise AuthError(
+                "[qobuz] could not determine user id — token may be invalid"
+            )
 
     def _get(self, endpoint, **params):
         r = self.s.get(f"{BASE_URL}/{endpoint}", params=params, timeout=15)
         if r.status_code in (400, 401):
-            raise SystemExit(
+            raise AuthError(
                 "[qobuz] token rejected — grab a fresh user_auth_token from "
                 "play.qobuz.com cookies"
             )
@@ -138,14 +147,15 @@ class QobuzClient(Client):
         return str(data["id"])
 
     def add_tracks(self, playlist_id, tracks):
+        # Qobuz accepts comma-joined ids — batch instead of one POST per track
+        ids = [t.source_id for t in tracks if t.source_id]
         added = 0
-        for t in tracks:
-            if not t.source_id:
-                continue
+        for i in range(0, len(ids), 100):
+            batch = ",".join(ids[i:i + 100])
             self._post(
-                "playlist/addTracks", playlist_id=playlist_id, track_ids=t.source_id,
+                "playlist/addTracks", playlist_id=playlist_id, track_ids=batch,
             )
-            added += 1
+            added += len(batch.split(","))
         return added
 
     # --- favorites ---

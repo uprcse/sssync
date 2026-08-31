@@ -1,24 +1,18 @@
-import pytest
-
-from sssync.clients.base import Playlist, Track
-from sssync.sync import SyncReport, resolve_tracks, sync_playlist
 
 from conftest import FakeClient, make_track
 
+from sssync.clients.base import Playlist
+from sssync.sync import SyncReport, resolve_tracks, sync_playlist
 
 # --- resolve_tracks ---
 
-def test_resolve_tracks_uses_dest_library_identity_before_searching():
+def test_resolve_tracks_searches_when_no_library_given():
     dest = FakeClient("dest")
     track = make_track("Song", "Artist")
-    dest_hit = make_track("Song", "Artist", source_id="dest-1")
 
-    resolved, unmatched, errors = resolve_tracks([track], dest, dest_library=[dest_hit])
+    resolve_tracks([track], dest)
 
-    assert resolved == [dest_hit]
-    assert unmatched == []
-    assert errors == []
-    assert dest.search_calls == []  # no API search needed
+    assert dest.search_calls == [track]  # search is the only path now
 
 
 def test_resolve_tracks_falls_back_to_search_when_not_in_library():
@@ -26,7 +20,7 @@ def test_resolve_tracks_falls_back_to_search_when_not_in_library():
     dest = FakeClient("dest", search_results={("Song", "Artist"): hit})
     track = make_track("Song", "Artist")
 
-    resolved, unmatched, errors = resolve_tracks([track], dest)
+    resolved, unmatched, _ = resolve_tracks([track], dest)
 
     assert resolved == [hit]
     assert unmatched == []

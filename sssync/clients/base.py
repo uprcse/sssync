@@ -1,7 +1,16 @@
-"""Client interface — every music service implements this."""
+"""Client interface — every music service implements this.
+
+Reading methods populate normalized `Track` objects. Writing is an
+optional capability: Spotify is read-only by design (its OAuth scope
+grants no playlist-modify), so write methods default to a clear
+ReadOnlyError rather than being abstract. sssync never destructively
+modifies a playlist — writes are append-only.
+"""
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+
+from ..exceptions import ReadOnlyError
 
 
 @dataclass
@@ -29,22 +38,17 @@ class Playlist:
 
 
 class Client(ABC):
-    """A music service that can hold playlists/favorites and accept tracks.
-
-    Reading methods populate normalized `Track` objects. Writing methods
-    are append-only — sssync never destructively modifies a playlist.
-    """
-
     name: str = "abstract"
+    read_only: bool = False
 
     def __init__(self, config: dict):
         self.config = config
 
     @abstractmethod
     def authenticate(self) -> None:
-        """Validate credentials. Raise a clear error if they're missing/bad."""
+        """Validate credentials. Raise AuthError if they're missing/bad."""
 
-    # --- reading ---
+    # --- reading (required) ---
     @abstractmethod
     def list_playlists(self) -> list[Playlist]: ...
 
@@ -55,16 +59,20 @@ class Client(ABC):
     def search_track(self, track: Track) -> Track | None:
         """Find the closest native track for a normalized Track, or None."""
 
-    # --- writing ---
-    @abstractmethod
-    def create_playlist(self, name: str, description: str = "") -> str: ...
+    # --- writing (optional; read-only clients leave these) ---
+    def find_playlist_by_name(self, name: str) -> Playlist | None:
+        if self.read_only:
+            raise ReadOnlyError(f"{self.name} is read-only")
+        for p in self.list_playlists():
+            if p.name == name:
+                return p
+        return None
 
-    @abstractmethod
+    def create_playlist(self, name: str, description: str = "") -> str:
+        raise ReadOnlyError(f"{self.name} does not support creating playlists")
+
     def add_tracks(self, playlist_id: str, tracks: list[Track]) -> int:
-        """Append native tracks; returns count added."""
-
-    @abstractmethod
-    def find_playlist_by_name(self, name: str) -> Playlist | None: ...
+        raise ReadOnlyError(f"{self.name} does not support adding tracks")
 
     # --- favorites (optional) ---
     def get_favorite_tracks(self) -> list[Track]:

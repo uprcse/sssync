@@ -1,12 +1,12 @@
 """Jellyfin client — playlists + library search over the REST API."""
 
-import json
 from pathlib import Path
-import urllib.parse
-import urllib.request
 
-from ..clients.base import Client, Playlist, Track
+import requests
+
+from ..exceptions import AuthError, ConfigError
 from ..matcher import best_match
+from .base import Client, Playlist, Track
 
 
 def _jf_isrc(item: dict) -> str | None:
@@ -26,46 +26,48 @@ class JellyfinClient(Client):
         self.base = config["url"].rstrip("/")
         key = config.get("api_key")
         if not key and config.get("api_key_path"):
-            key = open(
+            key = Path(
                 config["api_key_path"].replace("~", str(Path.home()), 1)
-            ).read().strip()
+            ).read_text().strip()
         if not key:
-            raise SystemExit(
+            raise ConfigError(
                 "[jellyfin] no api_key in ~/.config/sssync/config.toml "
                 "(or api_key_path pointing at a key file)"
             )
-        self.key = key
-        self._user_id = None
+        self.s = requests.Session()
+        self.s.headers.update({"X-Emby-Token": key})
+        self.s.timeout = 15
+        self._user_id = config.get("user_id")  # explicit override for multi-user servers
 
     def authenticate(self):
-        """Verify the API key against the live server."""
         try:
             self.user_id()
         except Exception as e:
-            raise SystemExit(f"[jellyfin] auth failed: {e}")
+            raise AuthError(f"[jellyfin] auth failed: {e}") from e
 
-    def _req(self, path, method="GET", body=None):
-        data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(
-            f"{self.base}{path}", data=data, method=method,
-            headers={"X-Emby-Token": self.key, "Content-Type": "application/json"},
+    def _req(self, path, method="GET", body=None, **params):
+        r = self.s.request(
+            method, f"{self.base}{path}",
+            json=body, params=params or None, timeout=15,
         )
-        with urllib.request.urlopen(req) as resp:
-            raw = resp.read()
-            return json.loads(raw) if raw else {}
+        r.raise_for_status()
+        raw = r.text
+        import json
+        return json.loads(raw) if raw else {}
 
     def user_id(self):
         if self._user_id is None:
             users = self._req("/Users")
             if not users:
-                raise SystemExit("[jellyfin] no users found")
+                raise AuthError("[jellyfin] no users found")
             self._user_id = users[0]["Id"]
         return self._user_id
 
     # --- reading ---
     def list_playlists(self):
         data = self._req(
-            f"/Items?IncludeItemTypes=Playlist&Recursive=true&UserId={self.user_id()}"
+            "/Items", IncludeItemTypes="Playlist", Recursive="true",
+            UserId=self.user_id(),
         )
         return [
             Playlist(
@@ -76,28 +78,38 @@ class JellyfinClient(Client):
         ]
 
     def get_playlist_tracks(self, playlist_id):
-        data = self._req(
-            f"/Playlists/{playlist_id}/Items?UserId={self.user_id()}"
-            "&Fields=AlbumArtist,Artists,Album,RunTimeTicks&Limit=10000"
-        )
-        out = []
-        for it in data.get("Items", []):
-            dur = it.get("RunTimeTicks")
-            out.append(Track(
-                title=it.get("Name", ""),
-                artist=it.get("AlbumArtist")
-                or (it.get("Artists") or [""])[0] or "Unknown",
-                album=it.get("Album", ""),
-                duration_ms=int(dur / 10000) if dur else None,
-                source_id=it["Id"],
-            ))
+        out, offset = [], 0
+        while True:
+            data = self._req(
+                f"/Playlists/{playlist_id}/Items",
+                UserId=self.user_id(),
+                Fields="AlbumArtist,Artists,Album,RunTimeTicks",
+                Limit=500, StartIndex=offset,
+            )
+            items = data.get("Items", [])
+            for it in items:
+                dur = it.get("RunTimeTicks")
+                out.append(Track(
+                    title=it.get("Name", ""),
+                    artist=it.get("AlbumArtist")
+                    or (it.get("Artists") or [""])[0] or "Unknown",
+                    album=it.get("Album", ""),
+                    duration_ms=int(dur / 10000) if dur else None,
+                    source_id=it["Id"],
+                ))
+            offset += len(items)
+            if offset >= data.get("TotalRecordCount", len(items)) or not items:
+                break
         return out
 
     def search_track(self, track):
-        q = urllib.parse.quote(track.title)
+        # include artist in the search so common titles don't push the
+        # right result past the limit
+        q = f"{track.artist.split(',')[0].strip()} {track.title}"
         data = self._req(
-            f"/Items?SearchTerm={q}&IncludeItemTypes=Audio&Recursive=true"
-            "&Limit=15&Fields=AlbumArtist,Artists,RunTimeTicks,ProviderIds"
+            "/Items", SearchTerm=q, IncludeItemTypes="Audio",
+            Recursive="true", Limit=15,
+            Fields="AlbumArtist,Artists,RunTimeTicks,ProviderIds",
         )
         cands = []
         for it in data.get("Items", []):
@@ -127,12 +139,12 @@ class JellyfinClient(Client):
         return self._req("/Playlists", method="POST", body=body)["Id"]
 
     def add_tracks(self, playlist_id, tracks):
+        # chunk — a few hundred ids in one query string exceeds URL limits
         ids = [t.source_id for t in tracks if t.source_id]
-        if not ids:
-            return 0
-        self._req(
-            f"/Playlists/{playlist_id}/Items?Ids={','.join(ids)}"
-            f"&UserId={self.user_id()}",
-            method="POST",
-        )
+        for i in range(0, len(ids), 100):
+            batch = ids[i:i + 100]
+            self._req(
+                f"/Playlists/{playlist_id}/Items",
+                method="POST", Ids=",".join(batch), UserId=self.user_id(),
+            )
         return len(ids)

@@ -31,33 +31,20 @@ class SyncReport:
 def resolve_tracks(
     tracks: list[Track],
     dest: Client,
-    dest_library: list[Track] | None = None,
 ) -> tuple[list[Track], list[Track], list[str]]:
-    """Map normalized tracks onto dest-native tracks.
+    """Map normalized tracks onto dest-native tracks via dest.search_track.
 
-    Strategy:
-      1. If the dest playlist/library already contains the track (matched by
-         identity), reuse its native id — no API search needed.
-      2. Otherwise search the dest service.
-
-    Returns (resolved, unmatched, errors).
+    Returns (resolved, unmatched, errors). Search errors are captured per
+    track so one API failure doesn't kill the run.
     """
     resolved, unmatched, errors = [], [], []
-    # index the dest library once for cheap identity lookup
-    index: dict[tuple, Track] = {}
-    if dest_library:
-        for t in dest_library:
-            index[(normalize(t.title), normalize(t.artist))] = t
-
     for track in tracks:
-        hit = index.get((normalize(track.title), normalize(track.artist)))
-        if hit is None:
-            try:
-                hit = dest.search_track(track)
-            except Exception as e:
-                unmatched.append(track)
-                errors.append(f"search failed for {track}: {e}")
-                continue
+        try:
+            hit = dest.search_track(track)
+        except Exception as e:  # noqa: BLE001 — capture any client failure per track
+            errors.append(f"{track}: {e}")
+            unmatched.append(track)
+            continue
         if hit is not None:
             resolved.append(hit)
         else:
@@ -71,29 +58,28 @@ def sync_playlist(
     playlist_ref: str,
     dest_name: str | None = None,
     dry_run: bool = False,
+    is_id: bool = False,
 ) -> SyncReport:
     """Sync one playlist source → dest. Append-only at the destination."""
     report = SyncReport(source=source.name, dest=dest.name, playlist=playlist_ref)
 
-    # accept a playlist id/url or a name
-    src_pl = source.find_playlist_by_name(playlist_ref)
-    if src_pl is None:
-        src_pl = f"ref:{playlist_ref}"  # fall through; id/url still works
+    if is_id:
+        src_id = playlist_ref
+        report.playlist = playlist_ref
+    else:
+        src_pl = source.find_playlist_by_name(playlist_ref)
+        if src_pl is None:
+            src_id = playlist_ref  # fall back: might still be an id/url
+            report.playlist = playlist_ref
+        else:
+            src_id = src_pl.source_id
+            report.playlist = src_pl.name
 
-    src_tracks = source.get_playlist_tracks(
-        src_pl.source_id if not isinstance(src_pl, str) else playlist_ref
-    )
-    report.playlist = (
-        src_pl.name if not isinstance(src_pl, str) else playlist_ref
-    )
+    src_tracks = source.get_playlist_tracks(src_id)
 
     dest_name = dest_name or report.playlist
     target = dest.find_playlist_by_name(dest_name)
-
-    if target is not None:
-        existing = dest.get_playlist_tracks(target.source_id)
-    else:
-        existing = []
+    existing = dest.get_playlist_tracks(target.source_id) if target else []
 
     # skip tracks already present (incremental, non-destructive)
     have = {(normalize(t.title), normalize(t.artist)) for t in existing}
@@ -102,7 +88,7 @@ def sync_playlist(
         if (normalize(t.title), normalize(t.artist)) not in have
     ]
 
-    resolved, unmatched, errors = resolve_tracks(missing, dest, dest_library=existing)
+    resolved, unmatched, errors = resolve_tracks(missing, dest)
     report.matched = len(resolved)
     report.unmatched = unmatched
     report.errors = errors
@@ -110,11 +96,7 @@ def sync_playlist(
     if dry_run:
         return report
 
-    if target is None:
-        new_id = dest.create_playlist(dest_name)
-    else:
-        new_id = target.source_id
-
+    new_id = target.source_id if target else dest.create_playlist(dest_name)
     if resolved:
         dest.add_tracks(new_id, resolved)
     return report

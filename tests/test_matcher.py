@@ -1,13 +1,13 @@
 from sssync.clients.base import Track
 from sssync.matcher import (
-    DURATION_TOLERANCE_MS,
-    MIN_SCORE,
+    DEFAULT as MATCH_DEFAULT,
+)
+from sssync.matcher import (
     best_match,
     is_match,
     match_score,
     normalize,
 )
-
 
 # --- normalize ---
 
@@ -34,8 +34,8 @@ def test_match_score_identical_tracks_is_100():
 
 def test_match_score_penalizes_duration_beyond_tolerance():
     a = Track(title="Song", artist="Artist", duration_ms=200_000)
-    close = Track(title="Song", artist="Artist", duration_ms=200_000 + DURATION_TOLERANCE_MS)
-    far = Track(title="Song", artist="Artist", duration_ms=200_000 + DURATION_TOLERANCE_MS + 60_000)
+    close = Track(title="Song", artist="Artist", duration_ms=200_000 + MATCH_DEFAULT.duration_tolerance_ms)
+    far = Track(title="Song", artist="Artist", duration_ms=200_000 + MATCH_DEFAULT.duration_tolerance_ms + 60_000)
     assert match_score(a, close) == 100.0
     assert match_score(a, far) < 100.0
 
@@ -129,4 +129,4 @@ def test_best_match_picks_highest_scoring_candidate():
 
 def test_min_score_threshold_is_respected_directly():
     # sanity check the module constant hasn't silently drifted
-    assert MIN_SCORE == 75
+    assert MATCH_DEFAULT.min_score == 75

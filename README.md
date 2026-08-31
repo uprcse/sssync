@@ -4,13 +4,15 @@ A scriptable playlist sync tool for Qobuz, Spotify, and Jellyfin.
 
 ## Features
 
-- Sync playlists in any direction between Qobuz, Spotify, and Jellyfin
+- Sync playlists from Spotify or Qobuz into Qobuz or Jellyfin (Spotify is read-only, so it's a source only)
 - ISRC-based track matching (exact) with fuzzy title/artist/duration fallback
 - Incremental, append-only syncs — existing playlist contents are never touched
 - Favorites sync between services that support them
 - Simple TOML config, streamrip-style CLI
 
 ## Installation
+
+Requires Python 3.10+.
 
 ```bash
 pip install git+https://github.com/uprcse/sssync.git
@@ -38,7 +40,7 @@ redirect_uri = "http://127.0.0.1:8888/callback"
 [jellyfin]
 url = "http://your-server/jellyfin"
 api_key = ""
-# or: api_key_path = "~/jellyfin_key.txt"
+# or: api_key_path = "~/jellyfin_api_key.txt"
 ```
 
 ## Usage
@@ -80,10 +82,22 @@ sssync favorites spotify qobuz
 
 1. **ISRC** — if both services expose the track's ISRC, it's an exact match.
 2. **Fuzzy** — normalized title/artist similarity (rapidfuzz) with a duration
-   tolerance. Thresholds are tunable in `[sync]` in the config.
+   tolerance. Thresholds are tunable in the `[sync]` section of the config.
 
 Unmatched tracks are reported, never silently dropped.
 
+## Development
+
+```bash
+git clone https://github.com/uprcse/sssync.git
+cd sssync
+pip install -e ".[dev]"
+pytest tests/
+ruff check sssync tests
+```
+
+CI runs pytest + ruff on Python 3.11–3.13.
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).

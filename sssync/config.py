@@ -2,7 +2,13 @@
 
 import os
 from pathlib import Path
-from functools import lru_cache
+
+try:
+    import tomllib
+except ImportError:  # Python 3.10
+    import tomli as tomllib  # type: ignore
+
+from .exceptions import ConfigError
 
 DEFAULT_CONFIG = """\
 # sssync configuration
@@ -10,8 +16,8 @@ DEFAULT_CONFIG = """\
 # complete for the commands that use it.
 
 [qobuz]
-# Session token from https://play.qobuz.com (DevTools → Application → Cookies
-# → user_auth_token). See `sssync config --docs qobuz` for a walkthrough.
+# Session token from https://play.qobuz.com (DevTools → Application →
+# Cookies → qobuz.com → user_auth_token).
 token = ""
 
 [spotify]
@@ -23,10 +29,12 @@ redirect_uri = "http://127.0.0.1:8888/callback"
 url = "http://your-server/jellyfin"
 api_key = ""
 # Or point at a file containing the key instead:
-# api_key_path = "~/JELLYFIN_API_KEY.txt"
+# api_key_path = "~/jellyfin_api_key.txt"
+# On a multi-user server, pin one explicitly:
+# user_id = "..."
 
 [sync]
-# Fuzzy matching thresholds
+# Fuzzy matching thresholds (read by the matcher)
 title_threshold = 80
 artist_threshold = 75
 duration_tolerance_ms = 5000
@@ -54,45 +62,38 @@ def ensure_config() -> Path:
 
 
 def load() -> dict:
-    import tomllib
-
     p = ensure_config()
     with open(p, "rb") as f:
-        cfg = tomllib.load(f)
-    return cfg
+        return tomllib.load(f)
 
 
 def section(cfg: dict, name: str) -> dict:
-    """Get a source's config section, erroring clearly if missing/empty."""
+    """Get a source's config section, erroring clearly if missing."""
     s = cfg.get(name)
     if s is None:
-        raise SystemExit(
+        raise ConfigError(
             f"No [{name}] section in {config_path()}. "
             f"Run `sssync config` to edit it."
         )
     return s
 
 
-@lru_cache(maxsize=None)
-def sources_registry():
+def make_source(cfg: dict, name: str):
+    """Instantiate a client for `name` from config, with auth applied."""
+    from .clients.jellyfin import JellyfinClient
     from .clients.qobuz import QobuzClient
     from .clients.spotify import SpotifyClient
-    from .clients.jellyfin import JellyfinClient
 
-    return {
+    registry = {
         "qobuz": QobuzClient,
         "spotify": SpotifyClient,
         "jellyfin": JellyfinClient,
     }
-
-
-def make_source(cfg: dict, name: str):
-    """Instantiate a client for `name` from config, with auth applied."""
     try:
-        cls = sources_registry()[name]
+        cls = registry[name]
     except KeyError:
-        raise SystemExit(
-            f"Unknown source '{name}'. Available: {', '.join(sources_registry())}"
+        raise ConfigError(
+            f"Unknown source '{name}'. Available: {', '.join(registry)}"
         )
     client = cls(section(cfg, name))
     client.authenticate()

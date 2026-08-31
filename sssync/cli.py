@@ -1,11 +1,10 @@
 """sssync — a scriptable playlist sync tool for Qobuz, Spotify, and Jellyfin."""
 
-import sys
-
 import click
 
 from . import __version__
 from . import config as config_mod
+from .exceptions import SssyncError
 
 
 @click.group()
@@ -17,14 +16,14 @@ def main():
 @main.command()
 @click.argument("source")
 @click.argument("dest")
-@click.argument("playlist")
+@click.argument("playlist", required=False)
 @click.option("--name", "-n", default=None, help="Destination playlist name")
 @click.option("--all", "sync_all", is_flag=True, help="Sync every playlist from SOURCE")
 @click.option("--dry-run", is_flag=True, help="Show what would happen, change nothing")
 def sync(source, dest, playlist, name, sync_all, dry_run):
     """Sync a playlist from SOURCE to DEST.
 
-    PLAYLIST can be a name, an id, or a URL.
+    PLAYLIST can be a name, an id, or a URL. Omit it with --all.
 
     Examples:
 
@@ -36,21 +35,29 @@ def sync(source, dest, playlist, name, sync_all, dry_run):
     """
     if source == dest:
         raise click.ClickException("SOURCE and DEST must differ")
-    cfg = config_mod.load()
-    src = config_mod.make_source(cfg, source)
-    dst = config_mod.make_source(cfg, dest)
+    if not playlist and not sync_all:
+        raise click.ClickException("Provide PLAYLIST or use --all")
+    try:
+        cfg = config_mod.load()
+        src = config_mod.make_source(cfg, source)
+        dst = config_mod.make_source(cfg, dest)
+    except SssyncError as e:
+        raise click.ClickException(str(e))
 
     from .sync import sync_playlist
 
-    if sync_all:
-        playlists = src.list_playlists()
-        click.echo(f"Syncing {len(playlists)} playlists {source} → {dest}")
-        for p in playlists:
-            r = sync_playlist(src, dst, p.source_id, p.name, dry_run)
+    try:
+        if sync_all:
+            playlists = src.list_playlists()
+            click.echo(f"Syncing {len(playlists)} playlists {source} → {dest}")
+            for p in playlists:
+                r = sync_playlist(src, dst, p.source_id, p.name, dry_run, is_id=True)
+                click.echo(r.summary())
+        else:
+            r = sync_playlist(src, dst, playlist, name, dry_run)
             click.echo(r.summary())
-    else:
-        r = sync_playlist(src, dst, playlist, name, dry_run)
-        click.echo(r.summary())
+    except SssyncError as e:
+        raise click.ClickException(str(e))
 
 
 @main.command("favorites")
@@ -59,32 +66,29 @@ def sync(source, dest, playlist, name, sync_all, dry_run):
 @click.option("--dry-run", is_flag=True)
 def favorites(source, dest, dry_run):
     """Sync SOURCE favorites (liked tracks) into DEST favorites."""
-    cfg = config_mod.load()
-    src = config_mod.make_source(cfg, source)
-    dst = config_mod.make_source(cfg, dest)
+    try:
+        cfg = config_mod.load()
+        src = config_mod.make_source(cfg, source)
+        dst = config_mod.make_source(cfg, dest)
+    except SssyncError as e:
+        raise click.ClickException(str(e))
 
     try:
         src_tracks = src.get_favorite_tracks()
     except NotImplementedError:
         raise click.ClickException(f"{source} does not support favorites")
-
-    from .matcher import normalize
-
-    # source_ids are native to each service and never overlap across
-    # services, so identity must be compared by normalized (title, artist).
     existing = {
-        (normalize(t.title), normalize(t.artist)) for t in dst.get_favorite_tracks()
+        (t.title.lower(), t.artist.lower()) for t in dst.get_favorite_tracks()
     }
 
     missing = [
         t for t in src_tracks
-        if (normalize(t.title), normalize(t.artist)) not in existing
+        if (t.title.lower(), t.artist.lower()) not in existing
     ]
     click.echo(f"{len(missing)} of {len(src_tracks)} favorites not in {dest}")
     if dry_run or not missing:
         return
 
-    # favorites need native ids — search for each
     added = 0
     for t in missing:
         hit = dst.search_track(t)
@@ -97,8 +101,11 @@ def favorites(source, dest, dry_run):
 @click.argument("source")
 def playlists(source):
     """List playlists on a SOURCE."""
-    cfg = config_mod.load()
-    src = config_mod.make_source(cfg, source)
+    try:
+        cfg = config_mod.load()
+        src = config_mod.make_source(cfg, source)
+    except SssyncError as e:
+        raise click.ClickException(str(e))
     for p in src.list_playlists():
         click.echo(f"{p.source_id}\t{p.track_count:>5}\t{p.name}")
 
