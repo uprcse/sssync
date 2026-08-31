@@ -12,10 +12,26 @@ A scriptable playlist sync tool for Qobuz, Spotify, and Jellyfin.
 
 ## Installation
 
-Requires Python 3.10+.
+Requires Python 3.11+.
+
+Install as an isolated tool (recommended):
 
 ```bash
-pip install git+https://github.com/uprcse/sssync.git
+uv tool install sssync
+# or
+pipx install sssync
+```
+
+Try it without installing anything:
+
+```bash
+uvx sssync playlists qobuz
+```
+
+Or with pip in a virtualenv:
+
+```bash
+pip install sssync
 ```
 
 ## Configuration
