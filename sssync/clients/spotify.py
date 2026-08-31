@@ -49,9 +49,7 @@ class SpotifyClient(Client):
         if not t or t.get("is_local"):
             return None  # local files have no searchable identity
         artists = t.get("artists") or [{}]
-        isrc = None
-        for ext in t.get("external_ids", {}) and [t["external_ids"]] or []:
-            isrc = ext.get("isrc")
+        isrc = (t.get("external_ids") or {}).get("isrc")
         return Track(
             title=t.get("name", ""),
             artist=", ".join(a.get("name", "") for a in artists if a.get("name")) or "Unknown",

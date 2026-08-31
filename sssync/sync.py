@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 
 from .clients.base import Client, Track
-from .matcher import best_match
+from .matcher import normalize
 
 
 @dataclass
@@ -32,7 +32,7 @@ def resolve_tracks(
     tracks: list[Track],
     dest: Client,
     dest_library: list[Track] | None = None,
-) -> tuple[list[Track], list[Track]]:
+) -> tuple[list[Track], list[Track], list[str]]:
     """Map normalized tracks onto dest-native tracks.
 
     Strategy:
@@ -40,11 +40,9 @@ def resolve_tracks(
          identity), reuse its native id — no API search needed.
       2. Otherwise search the dest service.
 
-    Returns (resolved, unmatched).
+    Returns (resolved, unmatched, errors).
     """
-    from .matcher import normalize
-
-    resolved, unmatched = [], []
+    resolved, unmatched, errors = [], [], []
     # index the dest library once for cheap identity lookup
     index: dict[tuple, Track] = {}
     if dest_library:
@@ -58,12 +56,13 @@ def resolve_tracks(
                 hit = dest.search_track(track)
             except Exception as e:
                 unmatched.append(track)
+                errors.append(f"search failed for {track}: {e}")
                 continue
         if hit is not None:
             resolved.append(hit)
         else:
             unmatched.append(track)
-    return resolved, unmatched
+    return resolved, unmatched, errors
 
 
 def sync_playlist(
@@ -77,9 +76,7 @@ def sync_playlist(
     report = SyncReport(source=source.name, dest=dest.name, playlist=playlist_ref)
 
     # accept a playlist id/url or a name
-    src_pl = None
-    if source.name != "jellyfin":
-        src_pl = source.find_playlist_by_name(playlist_ref)
+    src_pl = source.find_playlist_by_name(playlist_ref)
     if src_pl is None:
         src_pl = f"ref:{playlist_ref}"  # fall through; id/url still works
 
@@ -99,15 +96,16 @@ def sync_playlist(
         existing = []
 
     # skip tracks already present (incremental, non-destructive)
-    have = {(t.title.lower(), t.artist.lower()) for t in existing}
+    have = {(normalize(t.title), normalize(t.artist)) for t in existing}
     missing = [
         t for t in src_tracks
-        if (t.title.lower(), t.artist.lower()) not in have
+        if (normalize(t.title), normalize(t.artist)) not in have
     ]
 
-    resolved, unmatched = resolve_tracks(missing, dest)
+    resolved, unmatched, errors = resolve_tracks(missing, dest, dest_library=existing)
     report.matched = len(resolved)
     report.unmatched = unmatched
+    report.errors = errors
 
     if dry_run:
         return report

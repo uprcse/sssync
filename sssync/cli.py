@@ -67,12 +67,19 @@ def favorites(source, dest, dry_run):
         src_tracks = src.get_favorite_tracks()
     except NotImplementedError:
         raise click.ClickException(f"{source} does not support favorites")
-    existing = {t.source_id for t in dst.get_favorite_tracks()}
 
-    from .matcher import best_match
-    from .sync import resolve_tracks
+    from .matcher import normalize
 
-    missing = [t for t in src_tracks if t.source_id not in existing]
+    # source_ids are native to each service and never overlap across
+    # services, so identity must be compared by normalized (title, artist).
+    existing = {
+        (normalize(t.title), normalize(t.artist)) for t in dst.get_favorite_tracks()
+    }
+
+    missing = [
+        t for t in src_tracks
+        if (normalize(t.title), normalize(t.artist)) not in existing
+    ]
     click.echo(f"{len(missing)} of {len(src_tracks)} favorites not in {dest}")
     if dry_run or not missing:
         return
