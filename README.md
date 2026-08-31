@@ -2,12 +2,19 @@
 
 A scriptable playlist sync tool for Qobuz, Spotify, and Jellyfin.
 
+```
+sssync sync spotify qobuz --all
+sssync sync qobuz jellyfin <playlist-id> "My Playlist"
+sssync sync qobuz jellyfin --dry-run
+```
+
 ## Features
 
-- Sync playlists from Spotify or Qobuz into Qobuz or Jellyfin (Spotify is read-only, so it's a source only)
-- ISRC-based track matching (exact) with fuzzy title/artist/duration fallback
-- Incremental, append-only syncs — existing playlist contents are never touched
-- Favorites sync between services that support them
+- **Sync playlists** from Spotify or Qobuz into Qobuz or Jellyfin (Spotify is read-only, so it's a source only)
+- **ISRC-first matching** — exact track identification via ISRC, with fuzzy title/artist/duration fallback
+- **Incremental, append-only syncs** — existing playlist contents are never touched; re-running adds only what's missing
+- **Favorites sync** between services that support them
+- **Dry-run mode** — preview matches without writing anything
 - Simple TOML config, streamrip-style CLI
 
 ## Installation
@@ -59,6 +66,8 @@ api_key = ""
 # or: api_key_path = "~/jellyfin_api_key.txt"
 ```
 
+Only the sections you use need to be filled in — sources are loaded lazily per command.
+
 ## Usage
 
 List playlists on a source:
@@ -68,7 +77,7 @@ sssync playlists qobuz
 sssync playlists jellyfin
 ```
 
-Sync a playlist (accepts a name, id, or URL):
+Sync a playlist (accepts a name, an id, or a URL):
 
 ```bash
 sssync sync spotify qobuz "My Playlist"
@@ -97,10 +106,21 @@ sssync favorites spotify qobuz
 ## How matching works
 
 1. **ISRC** — if both services expose the track's ISRC, it's an exact match.
-2. **Fuzzy** — normalized title/artist similarity (rapidfuzz) with a duration
-   tolerance. Thresholds are tunable in the `[sync]` section of the config.
+2. **Fuzzy** — normalized title/artist similarity (rapidfuzz) with a duration tolerance. Thresholds are tunable in the `[sync]` section of the config:
 
-Unmatched tracks are reported, never silently dropped.
+```toml
+[sync]
+title_threshold = 80
+artist_threshold = 75
+duration_tolerance_ms = 5000
+min_score = 75
+```
+
+Unmatched tracks are reported, never silently dropped. API errors during matching are captured per track and included in the sync report.
+
+## Safety
+
+Writes are append-only by design. `sssync` never removes or reorders tracks in an existing destination playlist, and dry-run makes no changes at all. Destination playlists keep their cover art and metadata.
 
 ## Development
 
@@ -112,7 +132,7 @@ pytest tests/
 ruff check sssync tests
 ```
 
-CI runs pytest + ruff on Python 3.11–3.13.
+CI runs pytest + ruff on Python 3.11–3.13. Releases are published to PyPI automatically on tag push via Trusted Publishing.
 
 ## License
 
