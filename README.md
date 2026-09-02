@@ -1,5 +1,11 @@
 # sssync
 
+[![PyPI](https://img.shields.io/pypi/v/sssync)](https://pypi.org/project/sssync/)
+[![Downloads](https://img.shields.io/pypi/dm/sssync)](https://pypistats.org/packages/sssync)
+[![Python versions](https://img.shields.io/pypi/pyversions/sssync)](https://pypi.org/project/sssync/)
+[![Tests](https://img.shields.io/github/actions/workflow/status/uprcse/sssync/tests.yml?branch=master&label=tests)](https://github.com/uprcse/sssync/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 A scriptable playlist sync tool for Qobuz, Spotify, and Jellyfin.
 
 ```
@@ -21,7 +27,15 @@ sssync sync qobuz jellyfin --dry-run
 
 Requires Python 3.11+.
 
-Install as an isolated tool (recommended):
+```bash
+pip install sssync
+```
+
+That's it — works with any standard Python install. If you'd rather keep
+`sssync` out of your global environment, install it as an isolated CLI tool
+with [`uv`](https://docs.astral.sh/uv/) or [`pipx`](https://pipx.pypa.io/)
+instead (either one manages its own venv for you, so `sssync` stays
+isolated from your other Python packages):
 
 ```bash
 uv tool install sssync
@@ -29,16 +43,10 @@ uv tool install sssync
 pipx install sssync
 ```
 
-Try it without installing anything:
+Or skip installing entirely and run it once with `uv`:
 
 ```bash
 uvx sssync playlists qobuz
-```
-
-Or with pip in a virtualenv:
-
-```bash
-pip install sssync
 ```
 
 ## Configuration
@@ -133,6 +141,10 @@ ruff check sssync tests
 ```
 
 CI runs pytest + ruff on Python 3.11–3.13. Releases are published to PyPI automatically on tag push via Trusted Publishing.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## License
 
