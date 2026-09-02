@@ -23,6 +23,13 @@ Work merged between the `v0.2.2` tag and the adoption of Conventional
 Commits predates commit-driven changelog generation and isn't repeated
 here; see the individual commit messages on `master` for that detail.
 
+## v0.2.3 (2026-09-02)
+
+### Fix
+
+- **changelog**: use commitizen-recognized version headers
+- **qobuz**: skip re-authenticating when already authenticated
+
 ## v0.2.2 (2026-08-31)
 
 ### Fixed
