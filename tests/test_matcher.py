@@ -4,7 +4,9 @@ from sssync.matcher import (
 )
 from sssync.matcher import (
     best_match,
+    config_from,
     is_match,
+    match_isrc,
     match_score,
     normalize,
 )
@@ -86,6 +88,25 @@ def test_is_match_allows_duration_mismatch_when_title_near_exact():
     assert is_match(a, b) is True
 
 
+# --- match_isrc ---
+
+def test_match_isrc_finds_exact_case_insensitive_hit():
+    candidates = [
+        Track(title="A", artist="A", isrc="DEXYZ7654321"),
+        Track(title="B", artist="B", isrc="usabc1234567"),
+    ]
+    result = match_isrc("USABC1234567", candidates)
+    assert result is candidates[1]
+
+
+def test_match_isrc_returns_none_for_no_isrc_or_no_hit():
+    candidates = [Track(title="A", artist="A", isrc="DEXYZ7654321")]
+    assert match_isrc(None, candidates) is None
+    assert match_isrc("", candidates) is None
+    assert match_isrc("USABC1234567", candidates) is None
+    assert match_isrc("USABC1234567", []) is None
+
+
 # --- best_match ---
 
 def test_best_match_prefers_exact_isrc_over_fuzzy_candidates():
@@ -130,3 +151,41 @@ def test_best_match_picks_highest_scoring_candidate():
 def test_min_score_threshold_is_respected_directly():
     # sanity check the module constant hasn't silently drifted
     assert MATCH_DEFAULT.min_score == 75
+
+
+# --- config_from ---
+
+def test_config_from_reads_all_keys_from_sync_section():
+    cfg = config_from({
+        "title_threshold": 90,
+        "artist_threshold": 85,
+        "duration_tolerance_ms": 2000,
+        "min_score": 80,
+    })
+    assert cfg.title_threshold == 90
+    assert cfg.artist_threshold == 85
+    assert cfg.duration_tolerance_ms == 2000
+    assert cfg.min_score == 80.0
+
+
+def test_config_from_falls_back_to_defaults_for_missing_keys():
+    cfg = config_from({"title_threshold": 95})
+    assert cfg.title_threshold == 95
+    assert cfg.artist_threshold == MATCH_DEFAULT.artist_threshold
+    assert cfg.duration_tolerance_ms == MATCH_DEFAULT.duration_tolerance_ms
+    assert cfg.min_score == MATCH_DEFAULT.min_score
+
+
+def test_config_from_handles_none_and_empty_section():
+    assert config_from(None) == MATCH_DEFAULT
+    assert config_from({}) == MATCH_DEFAULT
+
+
+def test_config_from_actually_changes_matching_behavior():
+    # "Yesterday" vs "Yesterdays" scores ~95: clears the default title
+    # threshold (80) but not a stricter one built from a [sync] override.
+    track = Track(title="Yesterday", artist="Artist")
+    candidate = Track(title="Yesterdays", artist="Artist")
+    strict = config_from({"title_threshold": 99})
+    assert best_match(track, [candidate], MATCH_DEFAULT) is candidate
+    assert best_match(track, [candidate], strict) is None

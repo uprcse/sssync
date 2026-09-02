@@ -83,6 +83,7 @@ def make_source(cfg: dict, name: str):
     from .clients.jellyfin import JellyfinClient
     from .clients.qobuz import QobuzClient
     from .clients.spotify import SpotifyClient
+    from .matcher import config_from
 
     registry = {
         "qobuz": QobuzClient,
@@ -96,5 +97,6 @@ def make_source(cfg: dict, name: str):
             f"Unknown source '{name}'. Available: {', '.join(registry)}"
         )
     client = cls(section(cfg, name))
+    client.match_cfg = config_from(cfg.get("sync"))
     client.authenticate()
     return client

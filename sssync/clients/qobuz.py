@@ -5,7 +5,7 @@ from pathlib import Path
 import requests
 
 from ..exceptions import AuthError, ConfigError
-from ..matcher import best_match
+from ..matcher import best_match, match_isrc
 from .base import Client, Playlist, Track
 
 BASE_URL = "https://www.qobuz.com/api.json/0.2"
@@ -40,12 +40,14 @@ class QobuzClient(Client):
         self.user_id = None
 
     def authenticate(self):
+        if self.user_id:
+            return  # already authenticated this run, no need to re-check
         data = self._get("favorite/getUserFavorites", type="albums", limit=1)
         if "user" in data and "id" in data["user"]:
             self.user_id = data["user"]["id"]
         if not self.user_id:
             raise AuthError(
-                "[qobuz] could not determine user id — token may be invalid"
+                "[qobuz] could not determine user id, token may be invalid"
             )
 
     def _get(self, endpoint, **params):
@@ -118,9 +120,9 @@ class QobuzClient(Client):
             offset += limit
         return out
 
-    def search_track(self, track):
-        data = self._get("catalog/search", query=f"{track.artist} {track.title}", limit=10)
-        cands = [
+    @staticmethod
+    def _to_tracks(data) -> list[Track]:
+        return [
             Track(
                 title=t.get("title", ""),
                 artist=(t.get("performer") or {}).get("name", "Unknown"),
@@ -131,7 +133,20 @@ class QobuzClient(Client):
             )
             for t in (data.get("tracks") or {}).get("items", [])
         ]
-        return best_match(track, cands)
+
+    def search_by_isrc(self, isrc):
+        # catalog/search indexes ISRC as searchable text — querying the raw
+        # ISRC reliably surfaces the exact track without a title/artist guess.
+        data = self._get("catalog/search", query=isrc, limit=10)
+        return match_isrc(isrc, self._to_tracks(data))
+
+    def _search_track(self, track):
+        if track.isrc:
+            hit = self.search_by_isrc(track.isrc)
+            if hit is not None:
+                return hit
+        data = self._get("catalog/search", query=f"{track.artist} {track.title}", limit=10)
+        return best_match(track, self._to_tracks(data), self.match_cfg)
 
     # --- writing ---
     def find_playlist_by_name(self, name):

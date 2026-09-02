@@ -102,7 +102,12 @@ class JellyfinClient(Client):
                 break
         return out
 
-    def search_track(self, track):
+    # No search_by_isrc override: Jellyfin has no dedicated ISRC provider
+    # field, and most libraries never populate `_jf_isrc`'s heuristic match
+    # anyway (MusicBrainz ids are what's actually there in practice) — a
+    # direct lookup would have nothing to query. best_match still checks
+    # ISRC first against whatever the text search turns up.
+    def _search_track(self, track):
         # include artist in the search so common titles don't push the
         # right result past the limit
         q = f"{track.artist.split(',')[0].strip()} {track.title}"
@@ -122,7 +127,7 @@ class JellyfinClient(Client):
                 isrc=_jf_isrc(it),
                 source_id=it["Id"],
             ))
-        return best_match(track, cands)
+        return best_match(track, cands, self.match_cfg)
 
     # --- writing ---
     def find_playlist_by_name(self, name):

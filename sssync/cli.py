@@ -5,6 +5,8 @@ import click
 from . import __version__
 from . import config as config_mod
 from .exceptions import SssyncError
+from .matcher import normalize
+from .ui import spinner
 
 
 @click.group()
@@ -37,14 +39,16 @@ def sync(source, dest, playlist, name, sync_all, dry_run):
         raise click.ClickException("SOURCE and DEST must differ")
     if not playlist and not sync_all:
         raise click.ClickException("Provide PLAYLIST or use --all")
+    from .sync import sync_playlist
+
     try:
         cfg = config_mod.load()
-        src = config_mod.make_source(cfg, source)
-        dst = config_mod.make_source(cfg, dest)
+        with spinner(f"authenticating {source}…"):
+            src = config_mod.make_source(cfg, source)
+        with spinner(f"authenticating {dest}…"):
+            dst = config_mod.make_source(cfg, dest)
     except SssyncError as e:
         raise click.ClickException(str(e))
-
-    from .sync import sync_playlist
 
     try:
         if sync_all:
@@ -78,23 +82,32 @@ def favorites(source, dest, dry_run):
     except NotImplementedError:
         raise click.ClickException(f"{source} does not support favorites")
     existing = {
-        (t.title.lower(), t.artist.lower()) for t in dst.get_favorite_tracks()
+        (normalize(t.title), normalize(t.artist)) for t in dst.get_favorite_tracks()
     }
 
     missing = [
         t for t in src_tracks
-        if (t.title.lower(), t.artist.lower()) not in existing
+        if (normalize(t.title), normalize(t.artist)) not in existing
     ]
     click.echo(f"{len(missing)} of {len(src_tracks)} favorites not in {dest}")
     if dry_run or not missing:
         return
 
+    from .sync import resolve_tracks
+
+    resolved, unmatched, errors = resolve_tracks(missing, dst, "favorites")
     added = 0
-    for t in missing:
-        hit = dst.search_track(t)
-        if hit and dst.add_favorite_track(hit):
-            added += 1
+    for t in resolved:
+        try:
+            if dst.add_favorite_track(t):
+                added += 1
+        except Exception as e:  # noqa: BLE001 — one failure shouldn't abort the run
+            errors.append(f"{t}: {e}")
     click.echo(f"Added {added} favorites to {dest}")
+    if unmatched:
+        click.echo(f"  {len(unmatched)} unmatched")
+    for e in errors:
+        click.echo(f"  error: {e}")
 
 
 @main.command()
@@ -103,10 +116,13 @@ def playlists(source):
     """List playlists on a SOURCE."""
     try:
         cfg = config_mod.load()
-        src = config_mod.make_source(cfg, source)
+        with spinner(f"authenticating {source}…"):
+            src = config_mod.make_source(cfg, source)
+        with spinner("fetching playlists…"):
+            playlists = src.list_playlists()
     except SssyncError as e:
         raise click.ClickException(str(e))
-    for p in src.list_playlists():
+    for p in playlists:
         count = str(p.track_count) if p.track_count else "-"
         click.echo(f"{p.source_id}\t{count:>5}\t{p.name}")
 

@@ -8,16 +8,23 @@ license-files = ["LICENSE"]
 authors = [{ name = "uppercase" }]
 requires-python = ">=3.11"
 classifiers = [
+    "Development Status :: 4 - Beta",
     "Environment :: Console",
-    "Programming Language :: Python :: 3",
-    "Topic :: Multimedia :: Sound/Audio",
+    "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Sound/Audio",
 ]
 dependencies = [
     "click>=8.1",
     "requests",
     "rapidfuzz",
     "spotipy",
+    "rich>=13",
 ]
 
 [project.urls]
@@ -28,7 +35,7 @@ Issues = "https://github.com/uprcse/sssync/issues"
 sssync = "sssync.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "ruff", "commitizen"]
 
 [build-system]
 requires = ["hatchling"]
@@ -37,8 +44,13 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["sssync"]
 
-[tool.hatch.version]
-path = "sssync/__init__.py"
-
 [tool.ruff]
 line-length = 100
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version_provider = "pep621"
+version_files = ["sssync/__init__.py:__version__"]
+tag_format = "v$version"
+update_changelog_on_bump = true
+major_version_zero = true

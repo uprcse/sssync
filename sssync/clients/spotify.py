@@ -6,6 +6,7 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
 from ..exceptions import ConfigError
+from ..matcher import best_match, match_isrc
 from .base import Client, Playlist, Track
 
 SCOPE = "playlist-read-private playlist-read-collaborative user-library-read"
@@ -107,14 +108,9 @@ class SpotifyClient(Client):
             offset += 100
         return out
 
-    def search_track(self, track):
-        # field queries break on colons/quotes and multi-artist strings —
-        # use a plain query with the primary artist only
-        primary = track.artist.split(",")[0].strip()
-        q = f"{track.title} {primary}"
-        res = self.sp.search(q=q, type="track", limit=10)
-        from ..matcher import best_match
-        cands = [
+    @staticmethod
+    def _to_tracks(items) -> list[Track]:
+        return [
             Track(
                 title=t["name"],
                 artist=", ".join(a["name"] for a in t["artists"]),
@@ -123,9 +119,26 @@ class SpotifyClient(Client):
                 isrc=t.get("external_ids", {}).get("isrc"),
                 source_id=t["id"],
             )
-            for t in res["tracks"]["items"]
+            for t in items
         ]
-        return best_match(track, cands)
+
+    def search_by_isrc(self, isrc):
+        # the search API supports a dedicated isrc: field filter — an exact,
+        # single-call lookup instead of hoping a text search surfaces it.
+        res = self.sp.search(q=f"isrc:{isrc}", type="track", limit=10)
+        return match_isrc(isrc, self._to_tracks(res["tracks"]["items"]))
+
+    def _search_track(self, track):
+        if track.isrc:
+            hit = self.search_by_isrc(track.isrc)
+            if hit is not None:
+                return hit
+        # field queries break on colons/quotes and multi-artist strings —
+        # use a plain query with the primary artist only
+        primary = track.artist.split(",")[0].strip()
+        q = f"{track.title} {primary}"
+        res = self.sp.search(q=q, type="track", limit=10)
+        return best_match(track, self._to_tracks(res["tracks"]["items"]), self.match_cfg)
 
     # --- favorites (read) ---
     def get_favorite_tracks(self):

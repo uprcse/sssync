@@ -24,6 +24,22 @@ class MatchConfig:
 DEFAULT = MatchConfig()
 
 
+def config_from(section: dict | None) -> MatchConfig:
+    """Build a MatchConfig from a config.toml [sync] section.
+
+    Any key the section doesn't set falls back to the module default.
+    """
+    section = section or {}
+    return MatchConfig(
+        title_threshold=int(section.get("title_threshold", DEFAULT.title_threshold)),
+        artist_threshold=int(section.get("artist_threshold", DEFAULT.artist_threshold)),
+        duration_tolerance_ms=int(
+            section.get("duration_tolerance_ms", DEFAULT.duration_tolerance_ms)
+        ),
+        min_score=float(section.get("min_score", DEFAULT.min_score)),
+    )
+
+
 def normalize(s: str) -> str:
     s = unicodedata.normalize("NFKD", s or "")
     s = "".join(c for c in s if not unicodedata.combining(c))
@@ -59,16 +75,25 @@ def is_match(a: Track, b: Track, cfg: MatchConfig = DEFAULT) -> bool:
     )
 
 
+def match_isrc(isrc: str | None, candidates: list[Track]) -> Track | None:
+    """First candidate whose ISRC matches exactly (case-insensitive)."""
+    if not isrc:
+        return None
+    for c in candidates:
+        if c.isrc and c.isrc.upper() == isrc.upper():
+            return c
+    return None
+
+
 def best_match(
     track: Track,
     candidates: list[Track],
     cfg: MatchConfig = DEFAULT,
 ) -> Track | None:
     """Pick the best candidate: ISRC exact, else highest fuzzy score."""
-    if track.isrc:
-        for c in candidates:
-            if c.isrc and c.isrc.upper() == track.isrc.upper():
-                return c
+    isrc_hit = match_isrc(track.isrc, candidates)
+    if isrc_hit is not None:
+        return isrc_hit
     best, best_s = None, 0.0
     for c in candidates:
         if is_match(track, c, cfg):
