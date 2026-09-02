@@ -5,41 +5,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
-Everything in this file so far, including `[Unreleased]`, is hand-written
-history predating [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
-adoption. From the next release on, `cz bump` generates new entries from
-commit history instead, grouped by commit type rather than Keep a Changelog's
-Added/Changed/Fixed sections. See [CONTRIBUTING.md](CONTRIBUTING.md).
+This project uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+and [commitizen](https://commitizen-tools.github.io/commitizen/) to generate
+new entries here on every release. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## [Unreleased]
+Version headers below must stay in the `## v<version> (<date>)` form
+commitizen recognizes (`tag_format` in `pyproject.toml`). Anything else
+breaks its incremental changelog generation: it can't find the last
+documented version, so it silently regenerates the whole file from scratch
+instead of prepending the new release, which is exactly what happened the
+first time this project tried it. Only include a version header here once
+that version is actually tagged; commitizen generates the entry for the
+next release itself from commit messages, it isn't something to pre-write
+by hand.
 
-### Added
+Work merged between the `v0.2.2` tag and the adoption of Conventional
+Commits predates commit-driven changelog generation and isn't repeated
+here; see the individual commit messages on `master` for that detail.
 
-- ISRC-first matching now queries Qobuz and Spotify directly by ISRC before
-  falling back to fuzzy title/artist search, instead of only checking ISRC
-  against whatever a generic text search happened to return.
-- Progress spinners and a live progress bar (via `rich`) for auth, playlist
-  fetches, and track matching, with a silent fallback when output isn't a
-  terminal.
-- `search_track` results are now cached per client instance for the
-  lifetime of a single run, so the same track appearing in multiple
-  playlists (or in both a playlist and a favorites sync) is only looked up
-  once.
-
-### Fixed
-
-- The `[sync]` config section (`title_threshold`, `artist_threshold`,
-  `duration_tolerance_ms`, `min_score`) is now actually read and applied.
-  Previously it was documented and shipped in the default config but never
-  wired into the matcher.
-- `favorites` now dedups against the destination using the same
-  normalized-identity check as `sync` (strips punctuation/diacritics)
-  instead of raw `.lower()`, so titles like `"Don't Stop Believin'"` are no
-  longer treated as new every run.
-- `favorites` now captures per-track search/add failures and continues
-  the run instead of aborting entirely on the first API error.
-
-## [0.2.2] - 2026-08-31
+## v0.2.2 (2026-08-31)
 
 ### Fixed
 
@@ -51,7 +35,7 @@ Added/Changed/Fixed sections. See [CONTRIBUTING.md](CONTRIBUTING.md).
 - Persistent Spotify OAuth token cache, so re-running commands doesn't
   require re-authenticating in a browser each time.
 
-## [0.2.1] - 2026-08-31
+## v0.2.1 (2026-08-31)
 
 ### Changed
 
@@ -60,7 +44,7 @@ Added/Changed/Fixed sections. See [CONTRIBUTING.md](CONTRIBUTING.md).
 - Expanded the README: usage examples moved up top, a Safety section, and
   `MatchConfig` documentation.
 
-## [0.2.0] - 2026-08-31
+## v0.2.0 (2026-08-31)
 
 First published release on PyPI.
 
