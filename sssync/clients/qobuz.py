@@ -40,12 +40,14 @@ class QobuzClient(Client):
         self.user_id = None
 
     def authenticate(self):
+        if self.user_id:
+            return  # already authenticated this run, no need to re-check
         data = self._get("favorite/getUserFavorites", type="albums", limit=1)
         if "user" in data and "id" in data["user"]:
             self.user_id = data["user"]["id"]
         if not self.user_id:
             raise AuthError(
-                "[qobuz] could not determine user id — token may be invalid"
+                "[qobuz] could not determine user id, token may be invalid"
             )
 
     def _get(self, endpoint, **params):

@@ -29,6 +29,40 @@ def make_qobuz_client():
 
 # --- QobuzClient ---
 
+def test_qobuz_authenticate_is_idempotent(monkeypatch):
+    client = make_qobuz_client()
+    calls = []
+
+    def fake_get(endpoint, **params):
+        calls.append(endpoint)
+        return {"user": {"id": 42}}
+
+    monkeypatch.setattr(client, "_get", fake_get)
+    client.authenticate()
+    client.authenticate()
+    assert client.user_id == 42
+    assert calls == ["favorite/getUserFavorites"]  # second call was skipped
+
+
+def test_qobuz_list_playlists_does_not_reauthenticate(monkeypatch):
+    # mirrors config.make_source: authenticate() once up front, then call
+    # a method that used to call authenticate() again internally
+    client = make_qobuz_client()
+    calls = []
+
+    def fake_get(endpoint, **params):
+        calls.append(endpoint)
+        if endpoint == "favorite/getUserFavorites":
+            return {"user": {"id": 42}}
+        return {"playlists": {"items": [], "total": 0}}
+
+    monkeypatch.setattr(client, "_get", fake_get)
+    client.authenticate()
+    client.list_playlists()
+    assert calls == ["favorite/getUserFavorites", "playlist/getUserPlaylists"]
+
+
+
 def test_qobuz_search_by_isrc_returns_exact_hit(monkeypatch):
     client = make_qobuz_client()
     calls = []
