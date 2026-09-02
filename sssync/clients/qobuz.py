@@ -138,7 +138,7 @@ class QobuzClient(Client):
         data = self._get("catalog/search", query=isrc, limit=10)
         return match_isrc(isrc, self._to_tracks(data))
 
-    def search_track(self, track):
+    def _search_track(self, track):
         if track.isrc:
             hit = self.search_by_isrc(track.isrc)
             if hit is not None:

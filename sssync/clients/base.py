@@ -52,6 +52,11 @@ class Client(ABC):
 
         self.config = config
         self.match_cfg = DEFAULT
+        # process-lifetime cache: the same track (e.g. one that appears in
+        # several playlists) is looked up at most once per `sssync` run.
+        # Cleared implicitly on exit — see search_track() for why it can't
+        # grow unbounded within a run either.
+        self._search_cache: dict[tuple, Track | None] = {}
 
     @abstractmethod
     def authenticate(self) -> None:
@@ -65,8 +70,19 @@ class Client(ABC):
     def get_playlist_tracks(self, playlist_id: str) -> list[Track]: ...
 
     @abstractmethod
+    def _search_track(self, track: Track) -> Track | None:
+        """Find the closest native track for a normalized Track, or None.
+
+        Implement this (not search_track) — the public search_track()
+        wraps it with a per-run cache.
+        """
+
     def search_track(self, track: Track) -> Track | None:
-        """Find the closest native track for a normalized Track, or None."""
+        """Cached lookup: at most one real search per unique track per run."""
+        key = (track.isrc, track.title, track.artist)
+        if key not in self._search_cache:
+            self._search_cache[key] = self._search_track(track)
+        return self._search_cache[key]
 
     def search_by_isrc(self, isrc: str) -> Track | None:
         """Direct ISRC lookup, for services whose search indexes it.

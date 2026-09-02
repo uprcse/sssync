@@ -107,7 +107,7 @@ class JellyfinClient(Client):
     # anyway (MusicBrainz ids are what's actually there in practice) — a
     # direct lookup would have nothing to query. best_match still checks
     # ISRC first against whatever the text search turns up.
-    def search_track(self, track):
+    def _search_track(self, track):
         # include artist in the search so common titles don't push the
         # right result past the limit
         q = f"{track.artist.split(',')[0].strip()} {track.title}"

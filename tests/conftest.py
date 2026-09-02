@@ -40,7 +40,7 @@ class FakeClient(Client):
     def get_playlist_tracks(self, playlist_id):
         return list(self._tracks.get(playlist_id, []))
 
-    def search_track(self, track):
+    def _search_track(self, track):
         self.search_calls.append(track)
         result = self._search_results.get((track.title, track.artist))
         if isinstance(result, Exception):
