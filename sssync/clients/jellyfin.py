@@ -127,7 +127,7 @@ class JellyfinClient(Client):
                 isrc=_jf_isrc(it),
                 source_id=it["Id"],
             ))
-        return best_match(track, cands)
+        return best_match(track, cands, self.match_cfg)
 
     # --- writing ---
     def find_playlist_by_name(self, name):

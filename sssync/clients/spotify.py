@@ -138,7 +138,7 @@ class SpotifyClient(Client):
         primary = track.artist.split(",")[0].strip()
         q = f"{track.title} {primary}"
         res = self.sp.search(q=q, type="track", limit=10)
-        return best_match(track, self._to_tracks(res["tracks"]["items"]))
+        return best_match(track, self._to_tracks(res["tracks"]["items"]), self.match_cfg)
 
     # --- favorites (read) ---
     def get_favorite_tracks(self):

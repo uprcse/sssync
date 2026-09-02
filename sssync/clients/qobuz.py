@@ -144,7 +144,7 @@ class QobuzClient(Client):
             if hit is not None:
                 return hit
         data = self._get("catalog/search", query=f"{track.artist} {track.title}", limit=10)
-        return best_match(track, self._to_tracks(data))
+        return best_match(track, self._to_tracks(data), self.match_cfg)
 
     # --- writing ---
     def find_playlist_by_name(self, name):

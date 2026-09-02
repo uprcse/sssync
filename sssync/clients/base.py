@@ -9,8 +9,12 @@ modifies a playlist — writes are append-only.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from ..exceptions import ReadOnlyError
+
+if TYPE_CHECKING:
+    from ..matcher import MatchConfig
 
 
 @dataclass
@@ -41,8 +45,13 @@ class Client(ABC):
     name: str = "abstract"
     read_only: bool = False
 
+    match_cfg: "MatchConfig"
+
     def __init__(self, config: dict):
+        from ..matcher import DEFAULT  # lazy: matcher imports Track from here
+
         self.config = config
+        self.match_cfg = DEFAULT
 
     @abstractmethod
     def authenticate(self) -> None:

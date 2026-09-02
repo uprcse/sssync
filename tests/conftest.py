@@ -11,16 +11,25 @@ from sssync.clients.base import Client, Playlist, Track
 class FakeClient(Client):
     """Scriptable in-memory Client — no network calls, ever."""
 
-    def __init__(self, name, playlists=None, tracks_by_playlist=None, search_results=None):
+    def __init__(
+        self,
+        name,
+        playlists=None,
+        tracks_by_playlist=None,
+        search_results=None,
+        favorite_tracks=None,
+    ):
         super().__init__({})
         self.name = name
         self._playlists = list(playlists or [])
         self._tracks = dict(tracks_by_playlist or {})  # playlist_id -> list[Track]
         # keyed by (title, artist) -> Track | Exception | None
         self._search_results = dict(search_results or {})
+        self._favorite_tracks = list(favorite_tracks or [])
         self.created_playlists = []  # (id, name, description)
         self.added_tracks = []  # (playlist_id, [Track, ...])
         self.search_calls = []  # tracks passed to search_track, in order
+        self.added_favorites = []  # tracks passed to add_favorite_track, in order
 
     def authenticate(self):
         pass
@@ -55,6 +64,13 @@ class FakeClient(Client):
         self.added_tracks.append((playlist_id, list(tracks)))
         self._tracks.setdefault(playlist_id, []).extend(tracks)
         return len(tracks)
+
+    def get_favorite_tracks(self):
+        return list(self._favorite_tracks)
+
+    def add_favorite_track(self, track):
+        self.added_favorites.append(track)
+        return True
 
 
 def make_track(title="Song", artist="Artist", **kwargs):

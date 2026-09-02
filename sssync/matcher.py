@@ -24,6 +24,22 @@ class MatchConfig:
 DEFAULT = MatchConfig()
 
 
+def config_from(section: dict | None) -> MatchConfig:
+    """Build a MatchConfig from a config.toml [sync] section.
+
+    Any key the section doesn't set falls back to the module default.
+    """
+    section = section or {}
+    return MatchConfig(
+        title_threshold=int(section.get("title_threshold", DEFAULT.title_threshold)),
+        artist_threshold=int(section.get("artist_threshold", DEFAULT.artist_threshold)),
+        duration_tolerance_ms=int(
+            section.get("duration_tolerance_ms", DEFAULT.duration_tolerance_ms)
+        ),
+        min_score=float(section.get("min_score", DEFAULT.min_score)),
+    )
+
+
 def normalize(s: str) -> str:
     s = unicodedata.normalize("NFKD", s or "")
     s = "".join(c for c in s if not unicodedata.combining(c))
