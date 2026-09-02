@@ -5,6 +5,12 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+Everything in this file so far, including `[Unreleased]`, is hand-written
+history predating [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+adoption. From the next release on, `cz bump` generates new entries from
+commit history instead, grouped by commit type rather than Keep a Changelog's
+Added/Changed/Fixed sections. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## [Unreleased]
 
 ### Added
@@ -23,8 +29,8 @@ and this project uses [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - The `[sync]` config section (`title_threshold`, `artist_threshold`,
-  `duration_tolerance_ms`, `min_score`) is now actually read and applied —
-  previously it was documented and shipped in the default config but never
+  `duration_tolerance_ms`, `min_score`) is now actually read and applied.
+  Previously it was documented and shipped in the default config but never
   wired into the matcher.
 - `favorites` now dedups against the destination using the same
   normalized-identity check as `sync` (strips punctuation/diacritics)
@@ -49,7 +55,7 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Genericized all CLI and README examples — no personal playlist data in
+- Genericized all CLI and README examples. No personal playlist data in
   the docs.
 - Expanded the README: usage examples moved up top, a Safety section, and
   `MatchConfig` documentation.

@@ -16,26 +16,24 @@ sssync sync qobuz jellyfin --dry-run
 
 ## Features
 
-- **Sync playlists** from Spotify or Qobuz into Qobuz or Jellyfin (Spotify is read-only, so it's a source only)
-- **ISRC-first matching** — exact track identification via ISRC, with fuzzy title/artist/duration fallback
-- **Incremental, append-only syncs** — existing playlist contents are never touched; re-running adds only what's missing
-- **Favorites sync** between services that support them
-- **Dry-run mode** — preview matches without writing anything
-- Simple TOML config, streamrip-style CLI
+- Syncs playlists from Spotify or Qobuz into Qobuz or Jellyfin. Spotify is read only, so it can only be a source.
+- Matches tracks by ISRC first, with fuzzy title, artist, and duration matching as a fallback.
+- Syncs are incremental and append only. Existing playlist contents are never touched, and re-running only adds what's missing.
+- Syncs favorites between services that support them.
+- Dry run mode previews matches without writing anything.
+- Simple TOML config. CLI modeled on streamrip.
 
 ## Installation
 
-Requires Python 3.11+.
+Requires Python 3.11 or greater.
 
 ```bash
 pip install sssync
 ```
 
-That's it — works with any standard Python install. If you'd rather keep
-`sssync` out of your global environment, install it as an isolated CLI tool
-with [`uv`](https://docs.astral.sh/uv/) or [`pipx`](https://pipx.pypa.io/)
-instead (either one manages its own venv for you, so `sssync` stays
-isolated from your other Python packages):
+That's it. It works with any standard Python install.
+
+If you'd rather keep sssync out of your global environment, install it as an isolated CLI tool with [uv](https://docs.astral.sh/uv/) or [pipx](https://pipx.pypa.io/) instead. Either one manages its own venv for you.
 
 ```bash
 uv tool install sssync
@@ -43,7 +41,7 @@ uv tool install sssync
 pipx install sssync
 ```
 
-Or skip installing entirely and run it once with `uv`:
+Or skip installing entirely and run it once with uv.
 
 ```bash
 uvx sssync playlists qobuz
@@ -55,12 +53,12 @@ uvx sssync playlists qobuz
 sssync config
 ```
 
-Creates and opens `~/.config/sssync/config.toml`:
+This creates and opens `~/.config/sssync/config.toml`.
 
 ```toml
 [qobuz]
-# Session token: log into https://play.qobuz.com → DevTools →
-# Application → Cookies → qobuz.com → user_auth_token
+# Session token: log into https://play.qobuz.com, open DevTools,
+# then Application > Cookies > qobuz.com > user_auth_token
 token = ""
 
 [spotify]
@@ -74,18 +72,18 @@ api_key = ""
 # or: api_key_path = "~/jellyfin_api_key.txt"
 ```
 
-Only the sections you use need to be filled in — sources are loaded lazily per command.
+Only the sections you use need to be filled in. Sources are loaded lazily per command.
 
 ## Usage
 
-List playlists on a source:
+List playlists on a source.
 
 ```bash
 sssync playlists qobuz
 sssync playlists jellyfin
 ```
 
-Sync a playlist (accepts a name, an id, or a URL):
+Sync a playlist. Accepts a name, an id, or a URL.
 
 ```bash
 sssync sync spotify qobuz "My Playlist"
@@ -93,19 +91,19 @@ sssync sync qobuz jellyfin <playlist-id>
 sssync sync qobuz jellyfin <playlist-id> "My Playlist"
 ```
 
-Sync everything:
+Sync everything.
 
 ```bash
 sssync sync spotify qobuz --all
 ```
 
-Preview without writing:
+Preview without writing.
 
 ```bash
 sssync sync qobuz jellyfin <playlist-id> --dry-run
 ```
 
-Sync favorites:
+Sync favorites.
 
 ```bash
 sssync favorites spotify qobuz
@@ -113,8 +111,8 @@ sssync favorites spotify qobuz
 
 ## How matching works
 
-1. **ISRC** — if the source track has an ISRC, services that support looking one up directly (Qobuz, Spotify) are queried by ISRC first, for an exact match without depending on text search ranking. Jellyfin has no dedicated ISRC field to query, so it relies on step 2.
-2. **Fuzzy** — normalized title/artist similarity (rapidfuzz) with a duration tolerance, run against a plain text search. If any candidate happens to carry a matching ISRC it still wins outright; otherwise the highest-scoring candidate above the thresholds is used. Thresholds are tunable in the `[sync]` section of the config:
+1. **ISRC.** If the source track has an ISRC, services that support looking one up directly (Qobuz, Spotify) are queried by ISRC first. This gives an exact match without depending on text search ranking. Jellyfin has no dedicated ISRC field to query, so it relies on step 2.
+2. **Fuzzy.** Normalized title, artist, and duration similarity (via rapidfuzz), run against a plain text search. If a candidate happens to carry a matching ISRC it still wins outright. Otherwise the highest scoring candidate above the thresholds is used. Thresholds are tunable in the `[sync]` section of the config:
 
 ```toml
 [sync]
@@ -128,7 +126,7 @@ Unmatched tracks are reported, never silently dropped. API errors during matchin
 
 ## Safety
 
-Writes are append-only by design. `sssync` never removes or reorders tracks in an existing destination playlist, and dry-run makes no changes at all. Destination playlists keep their cover art and metadata.
+Writes are append only by design. sssync never removes or reorders tracks in an existing destination playlist, and dry run makes no changes at all. Destination playlists keep their cover art and metadata.
 
 ## Development
 
@@ -140,12 +138,20 @@ pytest tests/
 ruff check sssync tests
 ```
 
-CI runs pytest + ruff on Python 3.11–3.13. Releases are published to PyPI automatically on tag push via Trusted Publishing.
+CI runs pytest and ruff on Python 3.11 through 3.13. Releases are published to PyPI automatically on tag push via Trusted Publishing.
+
+## Contributing
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), and releases are versioned and tagged with [commitizen](https://commitizen-tools.github.io/commitizen/). See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
+## Disclaimer
+
+I will not be responsible for how you use sssync. By using it, you agree to the terms and conditions of the Qobuz, Spotify, and Jellyfin APIs.
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

@@ -35,7 +35,7 @@ Issues = "https://github.com/uprcse/sssync/issues"
 sssync = "sssync.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "ruff", "commitizen"]
 
 [build-system]
 requires = ["hatchling"]
@@ -44,8 +44,13 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["sssync"]
 
-[tool.hatch.version]
-path = "sssync/__init__.py"
-
 [tool.ruff]
 line-length = 100
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version_provider = "pep621"
+version_files = ["sssync/__init__.py:__version__"]
+tag_format = "v$version"
+update_changelog_on_bump = true
+major_version_zero = true
