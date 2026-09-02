@@ -31,22 +31,6 @@ Requires Python 3.11 or greater.
 pip install sssync
 ```
 
-That's it. It works with any standard Python install.
-
-If you'd rather keep sssync out of your global environment, install it as an isolated CLI tool with [uv](https://docs.astral.sh/uv/) or [pipx](https://pipx.pypa.io/) instead. Either one manages its own venv for you.
-
-```bash
-uv tool install sssync
-# or
-pipx install sssync
-```
-
-Or skip installing entirely and run it once with uv.
-
-```bash
-uvx sssync playlists qobuz
-```
-
 ## Configuration
 
 ```bash
