@@ -27,6 +27,14 @@ sssync sync qobuz jellyfin --dry-run
 
 Requires Python 3.11 or greater.
 
+macOS/Linux:
+
+```bash
+pip3 install sssync
+```
+
+Windows:
+
 ```bash
 pip install sssync
 ```
