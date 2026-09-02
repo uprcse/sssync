@@ -105,8 +105,8 @@ sssync favorites spotify qobuz
 
 ## How matching works
 
-1. **ISRC** — if both services expose the track's ISRC, it's an exact match.
-2. **Fuzzy** — normalized title/artist similarity (rapidfuzz) with a duration tolerance. Thresholds are tunable in the `[sync]` section of the config:
+1. **ISRC** — if the source track has an ISRC, services that support looking one up directly (Qobuz, Spotify) are queried by ISRC first, for an exact match without depending on text search ranking. Jellyfin has no dedicated ISRC field to query, so it relies on step 2.
+2. **Fuzzy** — normalized title/artist similarity (rapidfuzz) with a duration tolerance, run against a plain text search. If any candidate happens to carry a matching ISRC it still wins outright; otherwise the highest-scoring candidate above the thresholds is used. Thresholds are tunable in the `[sync]` section of the config:
 
 ```toml
 [sync]

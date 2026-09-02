@@ -59,6 +59,16 @@ class Client(ABC):
     def search_track(self, track: Track) -> Track | None:
         """Find the closest native track for a normalized Track, or None."""
 
+    def search_by_isrc(self, isrc: str) -> Track | None:
+        """Direct ISRC lookup, for services whose search indexes it.
+
+        Default: unsupported. `search_track` implementations that can query
+        by ISRC should override this and try it before falling back to
+        fuzzy title/artist search — a real ISRC match isn't guaranteed to
+        rank in the top results of a plain-text search.
+        """
+        return None
+
     # --- writing (optional; read-only clients leave these) ---
     def find_playlist_by_name(self, name: str) -> Playlist | None:
         if self.read_only:

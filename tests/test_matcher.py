@@ -5,6 +5,7 @@ from sssync.matcher import (
 from sssync.matcher import (
     best_match,
     is_match,
+    match_isrc,
     match_score,
     normalize,
 )
@@ -84,6 +85,25 @@ def test_is_match_allows_duration_mismatch_when_title_near_exact():
     a = Track(title="Song", artist="Artist", duration_ms=200_000)
     b = Track(title="Song", artist="Artist", duration_ms=400_000)
     assert is_match(a, b) is True
+
+
+# --- match_isrc ---
+
+def test_match_isrc_finds_exact_case_insensitive_hit():
+    candidates = [
+        Track(title="A", artist="A", isrc="DEXYZ7654321"),
+        Track(title="B", artist="B", isrc="usabc1234567"),
+    ]
+    result = match_isrc("USABC1234567", candidates)
+    assert result is candidates[1]
+
+
+def test_match_isrc_returns_none_for_no_isrc_or_no_hit():
+    candidates = [Track(title="A", artist="A", isrc="DEXYZ7654321")]
+    assert match_isrc(None, candidates) is None
+    assert match_isrc("", candidates) is None
+    assert match_isrc("USABC1234567", candidates) is None
+    assert match_isrc("USABC1234567", []) is None
 
 
 # --- best_match ---
