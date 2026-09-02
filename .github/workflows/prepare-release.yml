@@ -1,0 +1,92 @@
+name: prepare release
+
+# Runs after every push to master (in practice, after a dev -> master
+# merge). If there are commits eligible for a version bump since the last
+# tag, opens (or updates) a PR with the version bump and changelog already
+# computed by commitizen. Nothing is tagged or published here. Merging
+# that PR is what does it, see tag-release.yml.
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - run: pip install commitizen
+
+      - name: Read current version
+        id: current
+        run: |
+          VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # If master's own version isn't tagged yet, a release PR was just
+      # merged and tag-release.yml hasn't tagged it yet. Don't try to bump
+      # again on top of that: skip, let tagging catch up first.
+      - name: Check current version is already tagged
+        id: tagcheck
+        run: |
+          if git rev-parse "v${{ steps.current.outputs.version }}" >/dev/null 2>&1; then
+            echo "tagged=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tagged=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for commits eligible to release
+        id: check
+        if: steps.tagcheck.outputs.tagged == 'true'
+        run: |
+          set +e
+          cz bump --dry-run > /tmp/cz.out 2>&1
+          code=$?
+          set -e
+          cat /tmp/cz.out
+          if [ "$code" -eq 0 ]; then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          elif [ "$code" -eq 21 ]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+          else
+            exit "$code"
+          fi
+
+      - name: Bump on a release branch
+        if: steps.tagcheck.outputs.tagged == 'true' && steps.check.outputs.eligible == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B release-please--branches--master origin/master
+          cz bump --yes
+          git push origin release-please--branches--master --force
+
+      - name: Open or update the release PR
+        if: steps.tagcheck.outputs.tagged == 'true' && steps.check.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NEW_VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          TITLE="bump: version to v$NEW_VERSION"
+          BODY="Automated release PR, prepared by commitizen from commits since the last release. Merging this tags v$NEW_VERSION and publishes it to PyPI (see tag-release.yml)."
+          EXISTING=$(gh pr list --head release-please--branches--master --state open --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh pr edit "$EXISTING" --title "$TITLE" --body "$BODY"
+          else
+            gh pr create --base master --head release-please--branches--master --title "$TITLE" --body "$BODY"
+          fi

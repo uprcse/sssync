@@ -1,0 +1,51 @@
+name: tag release
+
+# Fires when the release PR opened by prepare-release.yml is merged.
+# Tags the version that PR bumped to, then calls release.yml (as a
+# reusable workflow) to build and publish it to PyPI.
+#
+# This has to call release.yml directly rather than just pushing the tag
+# and letting release.yml's own `push: tags` trigger pick it up: a push
+# made with the default GITHUB_TOKEN doesn't fire other workflows'
+# `push`/`tag` triggers (GitHub's anti-recursion protection), so a plain
+# tag push here would silently never publish.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'release-please--branches--master'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.current.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Read version
+        id: current
+        run: |
+          VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.current.outputs.version }}"
+          git push origin "v${{ steps.current.outputs.version }}"
+
+  publish:
+    needs: tag
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/release.yml

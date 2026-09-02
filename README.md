@@ -144,10 +144,6 @@ CI runs pytest and ruff on Python 3.11 through 3.13. Releases are published to P
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), and releases are versioned and tagged with [commitizen](https://commitizen-tools.github.io/commitizen/). See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for release notes.
-
 ## Disclaimer
 
 I will not be responsible for how you use sssync. By using it, you agree to the terms and conditions of the Qobuz, Spotify, and Jellyfin APIs.
