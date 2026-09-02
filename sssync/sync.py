@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from .clients.base import Client, Track
 from .matcher import normalize
+from .ui import progress_bar, spinner
 
 
 @dataclass
@@ -31,6 +32,7 @@ class SyncReport:
 def resolve_tracks(
     tracks: list[Track],
     dest: Client,
+    playlist_label: str = "",
 ) -> tuple[list[Track], list[Track], list[str]]:
     """Map normalized tracks onto dest-native tracks via dest.search_track.
 
@@ -38,17 +40,21 @@ def resolve_tracks(
     track so one API failure doesn't kill the run.
     """
     resolved, unmatched, errors = [], [], []
-    for track in tracks:
-        try:
-            hit = dest.search_track(track)
-        except Exception as e:  # noqa: BLE001 — capture any client failure per track
-            errors.append(f"{track}: {e}")
-            unmatched.append(track)
-            continue
-        if hit is not None:
-            resolved.append(hit)
-        else:
-            unmatched.append(track)
+    with progress_bar() as prog:
+        task = prog.add_task(f"matching {playlist_label}".strip(), total=len(tracks))
+        for track in tracks:
+            try:
+                hit = dest.search_track(track)
+            except Exception as e:  # noqa: BLE001 — capture any client failure
+                errors.append(f"{track}: {e}")
+                unmatched.append(track)
+                prog.advance(task)
+                continue
+            if hit is not None:
+                resolved.append(hit)
+            else:
+                unmatched.append(track)
+            prog.advance(task)
     return resolved, unmatched, errors
 
 
@@ -67,7 +73,8 @@ def sync_playlist(
         src_id = playlist_ref
         report.playlist = playlist_ref
     else:
-        src_pl = source.find_playlist_by_name(playlist_ref)
+        with spinner(f"fetching playlists from {source.name}…"):
+            src_pl = source.find_playlist_by_name(playlist_ref)
         if src_pl is None:
             src_id = playlist_ref  # fall back: might still be an id/url
             report.playlist = playlist_ref
@@ -78,7 +85,8 @@ def sync_playlist(
     src_tracks = source.get_playlist_tracks(src_id)
 
     dest_name = dest_name or report.playlist
-    target = dest.find_playlist_by_name(dest_name)
+    with spinner(f"fetching playlists from {dest.name}…"):
+        target = dest.find_playlist_by_name(dest_name)
     existing = dest.get_playlist_tracks(target.source_id) if target else []
 
     # skip tracks already present (incremental, non-destructive)
@@ -88,7 +96,10 @@ def sync_playlist(
         if (normalize(t.title), normalize(t.artist)) not in have
     ]
 
-    resolved, unmatched, errors = resolve_tracks(missing, dest)
+    if not missing:
+        return report  # nothing to do; skip the matching pass entirely
+
+    resolved, unmatched, errors = resolve_tracks(missing, dest, report.playlist)
     report.matched = len(resolved)
     report.unmatched = unmatched
     report.errors = errors

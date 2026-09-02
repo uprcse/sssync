@@ -5,6 +5,7 @@ import click
 from . import __version__
 from . import config as config_mod
 from .exceptions import SssyncError
+from .ui import spinner
 
 
 @click.group()
@@ -37,14 +38,16 @@ def sync(source, dest, playlist, name, sync_all, dry_run):
         raise click.ClickException("SOURCE and DEST must differ")
     if not playlist and not sync_all:
         raise click.ClickException("Provide PLAYLIST or use --all")
+    from .sync import sync_playlist
+
     try:
         cfg = config_mod.load()
-        src = config_mod.make_source(cfg, source)
-        dst = config_mod.make_source(cfg, dest)
+        with spinner(f"authenticating {source}…"):
+            src = config_mod.make_source(cfg, source)
+        with spinner(f"authenticating {dest}…"):
+            dst = config_mod.make_source(cfg, dest)
     except SssyncError as e:
         raise click.ClickException(str(e))
-
-    from .sync import sync_playlist
 
     try:
         if sync_all:
@@ -103,10 +106,13 @@ def playlists(source):
     """List playlists on a SOURCE."""
     try:
         cfg = config_mod.load()
-        src = config_mod.make_source(cfg, source)
+        with spinner(f"authenticating {source}…"):
+            src = config_mod.make_source(cfg, source)
+        with spinner("fetching playlists…"):
+            playlists = src.list_playlists()
     except SssyncError as e:
         raise click.ClickException(str(e))
-    for p in src.list_playlists():
+    for p in playlists:
         count = str(p.track_count) if p.track_count else "-"
         click.echo(f"{p.source_id}\t{count:>5}\t{p.name}")
 
