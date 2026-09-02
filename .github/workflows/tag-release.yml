@@ -1,34 +1,36 @@
 name: tag release
 
 # Fires when the release PR opened by prepare-release.yml is merged.
-# Tags the version that PR bumped to, then calls release.yml (as a
-# reusable workflow) to build and publish it to PyPI.
+# Tags the version that PR bumped to. release.yml's own `push: tags`
+# trigger then picks it up and publishes to PyPI.
 #
-# This has to call release.yml directly rather than just pushing the tag
-# and letting release.yml's own `push: tags` trigger pick it up: a push
-# made with the default GITHUB_TOKEN doesn't fire other workflows'
-# `push`/`tag` triggers (GitHub's anti-recursion protection), so a plain
-# tag push here would silently never publish.
+# The tag push uses a PAT (RELEASE_TAG_TOKEN), not the default
+# GITHUB_TOKEN: a push made with GITHUB_TOKEN doesn't fire other
+# workflows' `push`/`tag` triggers (GitHub's anti-recursion protection),
+# so release.yml would silently never run. A prior version of this
+# workflow worked around that by calling release.yml directly as a
+# reusable workflow instead - that changes which workflow file PyPI's
+# Trusted Publishing sees as the actual publisher (tag-release.yml, not
+# release.yml), which PyPI correctly rejects since it's only configured
+# to trust release.yml. Using a PAT here means release.yml runs as a
+# genuine top-level workflow, same as a manual `git push --tags`, so the
+# existing Trusted Publishing config just works.
 
 on:
   pull_request:
     types: [closed]
     branches: [master]
 
-permissions:
-  contents: write
-
 jobs:
   tag:
     if: github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'release-please--branches--master'
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.current.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: master
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_TAG_TOKEN }}
 
       - name: Read version
         id: current
@@ -42,10 +44,3 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "v${{ steps.current.outputs.version }}"
           git push origin "v${{ steps.current.outputs.version }}"
-
-  publish:
-    needs: tag
-    permissions:
-      id-token: write
-      contents: read
-    uses: ./.github/workflows/release.yml
